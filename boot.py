@@ -5,7 +5,7 @@ import machine
 import os
 
 # initalise Sigfox for RCZ1 (Europe) (You may need a different RCZ Region)
-sigfox = Sigfox(mode=Sigfox.SIGFOX, rcz=Sigfox.RCZ1)
+# sigfox = Sigfox(mode=Sigfox.SIGFOX, rcz=Sigfox.RCZ1)
 
 # print Sigfox Device ID
 # print("ID: ", binascii.hexlify(sigfox.id()))
@@ -16,4 +16,5 @@ sigfox = Sigfox(mode=Sigfox.SIGFOX, rcz=Sigfox.RCZ1)
 uart = UART(0, baudrate=115200)
 os.dupterm(uart)
 
-machine.main('main.py')
+machine.main("main.py")
+
