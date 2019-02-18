@@ -2,6 +2,7 @@ from network import Sigfox
 from pytrack import Pytrack
 import urequests as requests
 from L76GNSS import L76GNSS
+from LIS2HH12 import LIS2HH12
 import socket
 import time
 import pycom
@@ -11,6 +12,8 @@ py = Pytrack()
 gps = L76GNSS(py, timeout=60)
 
 init_timer = time.time()
+acc = LIS2HH12()
+
 
 # print("connecting to Sigfox")
 # init Sigfox for RCZ1 (Europe)
@@ -25,11 +28,17 @@ init_timer = time.time()
 
 # Post an location to the Wia cloud via Sigfox backend
 def post_location(latitude, longitude):
+    pitch = acc.pitch()
+    roll = acc.roll()
     try:
-        print(str(latitude), ":", str(longitude))
+        prg = "GPS: {} : {} -> Pitch: {} Roll: {}".format(latitude, longitude, pitch, roll)
+        print(prg)
+        # print("GPS: " + str(latitude), ":", str(longitude) + " - Pitch: " + pitch + " Roll: " + roll)
         # s.send(struct.pack('f',float(latitude)) + struct.pack('f',float(longitude)))
     except:
-        print("Failed to get lat long")
+        # print("Failed to get lat long")
+        pr = "Pitch:  {} Roll: {}".format(pitch, roll)
+        print(pr)
         pass
 
 # main loop
@@ -42,7 +51,7 @@ while True:
     lat, lng = coord
     post_location(lat, lng)
     init_timer = time.time()
-    time.sleep(5) 
+    time.sleep(2.5) 
     # If the GPS has coordinates and 15 minites has past. Post the location data
     # if not coord == (None, None) and diff < 15:
     #     lat, lng = coord
