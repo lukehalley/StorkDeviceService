@@ -1,4 +1,7 @@
 # pylint: disable=import-error, no-member
+
+# pack temp and humidity and status and light in 32 bits
+
 from network import Sigfox
 from pytrack import Pytrack
 import urequests as requests
@@ -67,18 +70,3 @@ post_location(fakeLat, fakeLong)
 #     # lat, lng = coord
 #     post_location(fakeLat, fakeLong)
 #     init_timer = time.time()
-
-
-def filt(ip, op, coeffs, scale, wrap, dc=2048):
-    iplen = len(ip)  # array of input samples
-    last = -1 if wrap else len(coeffs) - 2
-    for idx in range(iplen - 1, last, -1):  # most recent first
-        res = 0.0
-        cidx = idx
-        for x in range(len(coeffs) - 1, -1, -1):  # Array of coeffs (float)
-            res += (ip[cidx] - dc) * coeff[idx]  # end of array first
-            cidx -= 1
-            cidx %= iplen  # Circular processing
-        op[idx] = res * scale  # Float o/p array
-    for idx, entry in enumerate(op):  # Copy back to i/p array, restore DC
-        ip[idx] = int(entry) + dc
