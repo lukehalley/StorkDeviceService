@@ -8,6 +8,7 @@ import socket
 import time
 import pycom
 import struct
+import array
 
 py = Pytrack()
 gps = L76GNSS(py, timeout=60)
@@ -15,10 +16,10 @@ gps = L76GNSS(py, timeout=60)
 init_timer = time.time()
 acc = LIS2HH12()
 
-fakeLat = 26.13454
-fakeLong = -152.45367
+fakeLat = 52.246501
+fakeLong = -7.275762
 
-storkCode = "0002"
+storkCode = 1
 statusCode = 2
 
 # initalise Sigfox for RCZ1 (Europe) (You may need a different RCZ Region)
@@ -35,14 +36,23 @@ def post_location(latitude, longitude):
     pitch = acc.pitch()
     roll = acc.roll()
     try:
-        prg = "SENDING THE FOLLOWING DATA -> GPS: {} : {} -> Pitch: {} Roll: {}".format(
-            latitude, longitude, pitch, roll
+
+        # pycom.rgbled(0x7F0000)  # red
+        # s.send(
+        #     struct.pack("<f", float(latitude))
+        #     + struct.pack("<f", float(longitude))
+        #     + struct.pack("<i", storkCode)
+        # )
+
+        longByteArray = bytearray(struct.pack("<f", float(latitude)))
+        longByteArray.extend(bytearray(struct.pack("<f", float(longitude))))
+        longByteArray.extend(bytearray(struct.pack("h", storkCode)))
+        s.send(longByteArray)
+        prg = "SENDING THE FOLLOWING DATA -> GPS: {} : {} -> Stork Code: {}".format(
+            latitude, longitude, storkCode
         )
         print(prg)
         print("SENDING DATA")
-        pycom.rgbled(0x7F0000)  # red
-        s.send(struct.pack("<f", float(latitude)) + struct.pack("<f", float(longitude)))
-        # s.send(struct.pack("s", str(storkCode)) + "f", float(latitude)) + struct.pack("f", float(longitude) + struct.pack("c", char(statusCode)))
         print("DATA SENT!")
         pycom.rgbled(0xB31DDC)  # green
     except Exception as e:
@@ -59,6 +69,7 @@ def post_location(latitude, longitude):
 # coord = gps.coordinates()
 # fakeLat, fakeLong = coord
 post_location(fakeLat, fakeLong)
+pycom.heartbeat(True)
 # init_timer = time.time()
 # time.sleep(2.5)
 # If the GPS has coordinates and 15 minites has past. Post the location data
