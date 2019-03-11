@@ -20,10 +20,12 @@ while True:
     if diff > 60:
         init_timer = time.time()
         print("One Minute Passed!")
-        print("One Minute Passed! Data -> {},{}".format(pitchValues, rollValues))
-        time.sleep(30)
+        time.sleep(5)
     else:
-        pitchValues.append(acc.pitch())
-        rollValues.append(acc.roll())
-        print("Diff: {} - Mem: {}".format(diff, gc.mem_free()))
+        while len(pitchValues) <= 1 and len(rollValues) <= 1:
+            pitchValues.append(acc.pitch())
+            rollValues.append(acc.roll())
+        print("2 Values In -> {},{}".format(pitchValues, rollValues))
+        pitchValues.clear()
+        rollValues.clear()
         time.sleep(1)
