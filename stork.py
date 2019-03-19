@@ -34,7 +34,7 @@ s = socket.socket(socket.AF_SIGFOX, socket.SOCK_RAW)
 pycom.heartbeat(False)
 
 # Post an location to the Wia cloud via Sigfox backend
-def post_location(latitude, longitude):
+def postData(latitude, longitude):
     pitch = acc.pitch()
     roll = acc.roll()
     try:
@@ -61,12 +61,12 @@ def post_location(latitude, longitude):
 # diff = final_timer - init_timer
 # coord = gps.coordinates()
 # fakeLat, fakeLong = coord
-post_location(fakeLat, fakeLong)
+postData(fakeLat, fakeLong)
 # init_timer = time.time()
 # time.sleep(2.5)
 # If the GPS has coordinates and 15 minites has past. Post the location data
 # if diff < 15:
 #     pycom.rgbled(0x1DDCDC)  # blue
 #     # lat, lng = coord
-#     post_location(fakeLat, fakeLong)
+#     postData(fakeLat, fakeLong)
 #     init_timer = time.time()
