@@ -29,7 +29,7 @@ statusCode = 0
 s = socket.socket(socket.AF_SIGFOX, socket.SOCK_RAW)
 
 # Disables heartbeat to enable the LED to be used
-pycom.heartbeat(False)
+pycom.heartbeat(True)
 
 # ------------------ TIMER SETUP ------------------
 # Set the timer 0
@@ -69,6 +69,7 @@ def postData(latitude, longitude):
         prg = "SENDING THE FOLLOWING DATA -> GPS: {} : {}".format(latitude, longitude)
         print(prg)
         print("SENDING DATA")
+        pycom.heartbeat(False)
         pycom.rgbled(0x7F0000)
         s.send(struct.pack("<f", float(latitude)) + struct.pack("<f", float(longitude)))
         # s.send(struct.pack("s", str(storkCode)) + "f", float(latitude)) + struct.pack("f", float(longitude) + struct.pack("c", char(statusCode)))
@@ -129,6 +130,7 @@ while True:
         minInt = 0
         print("CYCLE DONE!!!!!! SLEEPING FOR 10 SECS!")
         time.sleep(10)
+        pycom.heartbeat(True)
     # If the cycle is still active keep reading values
     else:
         # Get two pitch values and two roll values
