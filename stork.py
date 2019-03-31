@@ -11,6 +11,7 @@ import time
 import pycom
 import struct
 import gc
+from machine import SD
 
 # ------------------ DEVICE SETUP ------------------
 # Create instance of the Pytrack to access its functions
@@ -29,7 +30,7 @@ statusCode = 0
 s = socket.socket(socket.AF_SIGFOX, socket.SOCK_RAW)
 
 # Disables heartbeat to enable the LED to be used
-pycom.heartbeat(True)
+pycom.heartbeat(False)
 
 # ------------------ TIMER SETUP ------------------
 # Set the timer 0
@@ -60,7 +61,13 @@ mishandle = False
 minInt = 0
 
 # Send every n mins
-sendCycle = 10
+sendCycle = 0
+
+# GPS Fix Status
+fix = False
+
+# Send to Sigfox - set to True in production
+post = True
 
 # ------------------ FUNCTIONS ------------------
 # Post all parameters to the Sigfox backend
@@ -69,7 +76,6 @@ def postData(latitude, longitude):
         prg = "SENDING THE FOLLOWING DATA -> GPS: {} : {}".format(latitude, longitude)
         print(prg)
         print("SENDING DATA")
-        pycom.heartbeat(False)
         pycom.rgbled(0x7F0000)
         s.send(struct.pack("<f", float(latitude)) + struct.pack("<f", float(longitude)))
         # s.send(struct.pack("s", str(storkCode)) + "f", float(latitude)) + struct.pack("f", float(longitude) + struct.pack("c", char(statusCode)))
@@ -81,7 +87,6 @@ def postData(latitude, longitude):
 
 
 # ------------------ MAIN LOOP ------------------
-
 while True:
     # Current time
     final_timer = time.time()
@@ -125,12 +130,36 @@ while True:
                 )
             )
         # SEND CURRENT GPS, TEMP, HUMIDITY & STATUS
-        postData(fakeLat, fakeLong)
+        print("Getting GPS Position...")
+        coord = gps.coordinates()
+        lat, lng = coord
+        if not lat is None and not lng is None:  # Have a GPS fix
+            if fix:
+                print("GPS Lock Acquired! - Sending Real GPS Data!")
+                pycom.rgbled(0x7F7F00)  # YELLOW
+                time.sleep(10)
+                if post:
+                    print("Posting REAL data!")
+                    postData(lat, lng)
+                else:
+                    print("postToSigfox set to False - not posting REAL data!")
+                fix = True
+            print("{} {}".format(lat, lng))
+        else:  # No GPS fix
+            if not fix:
+                print("GPS signal lost or could not be locked!")
+                pycom.rgbled(0x7F0000)  # RED
+                time.sleep(10)
+                if post:
+                    print("Posting FAKE data!")
+                    postData(fakeLat, fakeLong)
+                else:
+                    print("postToSigfox set to False - not posting FAKE data!")
+                fix = False
         # Set the minute counter back to zero for the next "sendCycle" min cycle
         minInt = 0
         print("CYCLE DONE!!!!!! SLEEPING FOR 10 SECS!")
         time.sleep(10)
-        pycom.heartbeat(True)
     # If the cycle is still active keep reading values
     else:
         # Get two pitch values and two roll values
