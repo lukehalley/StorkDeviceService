@@ -61,7 +61,7 @@ mishandle = False
 minInt = 0
 
 # Send every n mins
-sendCycle = 0
+sendCycle = 10
 
 # GPS Fix Status
 fix = False
