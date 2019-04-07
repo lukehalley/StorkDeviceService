@@ -1,5 +1,7 @@
 # pylint: disable=import-error, no-member
 
+# lat::float:32:little-endian lng::float:32:little-endian status::char:1:little-endian temp::int:2:little-endian hum::int:2:little-endian
+
 # ------------------ Imports ------------------
 from network import Sigfox
 from pytrack import Pytrack
@@ -24,7 +26,7 @@ gps = L76GNSS(py, timeout=60)
 acc = LIS2HH12()
 
 # Set the status code to be all ok to start off.
-statusCode = 0
+statusCode = "a"
 
 # Set the sigfox socker
 s = socket.socket(socket.AF_SIGFOX, socket.SOCK_RAW)
@@ -40,6 +42,10 @@ init_timer = time.time()
 # Fake Lat and Long to use indoors
 fakeLat = 26.13454
 fakeLong = -152.45367
+
+# Fake Lat and Long to use indoors
+temp = 34
+hum = 26
 
 # Array to collect two pitch and roll values to compare
 pitchValues = []
@@ -61,13 +67,21 @@ mishandle = False
 minInt = 0
 
 # Send every n mins
-sendCycle = 10
+sendCycle = 0
 
 # GPS Fix Status
 fix = False
 
 # Send to Sigfox - set to True in production
 post = True
+
+# Boolean to decide if data should be sent (Testing)
+sendData = True
+
+# Boolean to decide if we should wait for GPS (Testing)
+waitForGPS = False
+
+sleeptime = 0
 
 # ------------------ FUNCTIONS ------------------
 # Post all parameters to the Sigfox backend
@@ -77,7 +91,14 @@ def postData(latitude, longitude):
         print(prg)
         print("SENDING DATA")
         pycom.rgbled(0x7F0000)
-        s.send(struct.pack("<f", float(latitude)) + struct.pack("<f", float(longitude)))
+
+        longByteArray = bytearray(struct.pack("<f", float(latitude)))
+        longByteArray.extend(bytearray(struct.pack("<f", float(longitude))))
+        longByteArray.extend(bytearray(struct.pack("h", temp)))
+        longByteArray.extend(bytearray(struct.pack("h", hum)))
+        # longByteArray.extend(bytearray(struct.pack("<i", hum)))
+
+        s.send(longByteArray)
         # s.send(struct.pack("s", str(storkCode)) + "f", float(latitude)) + struct.pack("f", float(longitude) + struct.pack("c", char(statusCode)))
         print("DATA SENT!")
         pycom.rgbled(0xB31DDC)  # green
@@ -132,12 +153,18 @@ while True:
         # SEND CURRENT GPS, TEMP, HUMIDITY & STATUS
         print("Getting GPS Position...")
         coord = gps.coordinates()
+
+        if waitForGPS:
+            while coord == (None, None):
+                print("Waiting for GPS...")
+                coord = gps.coordinates()
+                print(coord)
         lat, lng = coord
+
         if not lat is None and not lng is None:  # Have a GPS fix
             if fix:
                 print("GPS Lock Acquired! - Sending Real GPS Data!")
                 pycom.rgbled(0x7F7F00)  # YELLOW
-                time.sleep(10)
                 if post:
                     print("Posting REAL data!")
                     postData(lat, lng)
@@ -149,7 +176,6 @@ while True:
             if not fix:
                 print("GPS signal lost or could not be locked!")
                 pycom.rgbled(0x7F0000)  # RED
-                time.sleep(10)
                 if post:
                     print("Posting FAKE data!")
                     postData(fakeLat, fakeLong)
@@ -158,8 +184,8 @@ while True:
                 fix = False
         # Set the minute counter back to zero for the next "sendCycle" min cycle
         minInt = 0
-        print("CYCLE DONE!!!!!! SLEEPING FOR 10 SECS!")
-        time.sleep(10)
+        print("CYCLE DONE!!!!!! SLEEPING FOR N SECS!")
+        time.sleep(sleeptime)
     # If the cycle is still active keep reading values
     else:
         # Get two pitch values and two roll values
