@@ -1,6 +1,20 @@
 # pylint: disable=import-error, no-member
 
-# lat::float:32:little-endian lng::float:32:little-endian status::char:1:little-endian temp::int:2:little-endian hum::int:2:little-endian
+# lat::float:32:little-endian lng::float:32:little-endian temp::uint:16:little-endian hum::uint:16:little-endian stat::char:1
+
+# {
+#   "snr" : "{snr}",
+#   "lat": "{lat}",
+#   "lng": "{lng}",
+#   "device" : "{device}",
+#   "avgSnr" : "{avgSnr}",
+#   "rssi" : "{rssi}",
+#   "location" : {"type" : "Point", "coordinates" : [{customData#lat}, {customData#lng}]},
+#   "temperature" : "{customData#temp}",
+#   "humidity" : "{customData#hum}",
+#   "status" : "{customData#stat}"
+# }
+
 
 # ------------------ Imports ------------------
 from network import Sigfox
@@ -26,7 +40,7 @@ gps = L76GNSS(py, timeout=60)
 acc = LIS2HH12()
 
 # Set the status code to be all ok to start off.
-statusCode = "a"
+statusCode = 15
 
 # Set the sigfox socker
 s = socket.socket(socket.AF_SIGFOX, socket.SOCK_RAW)
@@ -87,16 +101,18 @@ sleeptime = 0
 # Post all parameters to the Sigfox backend
 def postData(latitude, longitude):
     try:
-        prg = "SENDING THE FOLLOWING DATA -> GPS: {} : {}".format(latitude, longitude)
+        prg = "SENDING THE FOLLOWING DATA -> GPS: {} : {} - TEMP: {} HUM: {}".format(
+            latitude, longitude, temp, hum
+        )
         print(prg)
         print("SENDING DATA")
         pycom.rgbled(0x7F0000)
 
         longByteArray = bytearray(struct.pack("<f", float(latitude)))
         longByteArray.extend(bytearray(struct.pack("<f", float(longitude))))
-        longByteArray.extend(bytearray(struct.pack("h", temp)))
-        longByteArray.extend(bytearray(struct.pack("h", hum)))
-        # longByteArray.extend(bytearray(struct.pack("<i", hum)))
+        longByteArray.extend(bytearray(struct.pack("<B", temp)))
+        longByteArray.extend(bytearray(struct.pack("<B", hum)))
+        longByteArray.extend(bytearray(struct.pack("<B", statusCode)))
 
         s.send(longByteArray)
         # s.send(struct.pack("s", str(storkCode)) + "f", float(latitude)) + struct.pack("f", float(longitude) + struct.pack("c", char(statusCode)))
