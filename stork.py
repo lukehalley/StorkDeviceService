@@ -23,6 +23,7 @@ import urequests as requests
 from L76GNSS import L76GNSS
 from LIS2HH12 import LIS2HH12
 import socket
+import binascii
 import time
 import pycom
 import struct
@@ -54,8 +55,8 @@ init_timer = time.time()
 
 # ------------------ DATA SETUP ------------------
 # Fake Lat and Long to use indoors
-fakeLat = 26.13454
-fakeLong = -152.45367
+fakeLat = 40.71427
+fakeLong = -74.00597
 
 # Fake Lat and Long to use indoors
 temp = 34
@@ -80,7 +81,7 @@ mishandle = False
 # Variable to track the minutes that have passed
 minInt = 0
 
-# Send every n mins
+# Send every n mins - WARNING: Should be 10 minutes to meet the Sigfox sending limits
 sendCycle = 0
 
 # GPS Fix Status
@@ -89,13 +90,13 @@ fix = False
 # Send to Sigfox - set to True in production
 post = True
 
-# Boolean to decide if data should be sent (Testing)
-sendData = True
-
 # Boolean to decide if we should wait for GPS (Testing)
 waitForGPS = False
 
-sleeptime = 0
+sleeptime = 100
+
+# Print Sigfox Device ID
+print("Stork Code: ", binascii.hexlify(sigfox.id()))
 
 # ------------------ FUNCTIONS ------------------
 # Post all parameters to the Sigfox backend
@@ -172,9 +173,11 @@ while True:
 
         if waitForGPS:
             while coord == (None, None):
+                pycom.rgbled(0x7F0000)
                 print("Waiting for GPS...")
                 coord = gps.coordinates()
                 print(coord)
+
         lat, lng = coord
 
         if not lat is None and not lng is None:  # Have a GPS fix
