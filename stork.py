@@ -23,7 +23,7 @@ gps = L76GNSS(py, timeout=60)
 acc = LIS2HH12()
 
 # Set the status code to be all ok to start off.
-statusCode = 15
+statusCode = 0
 
 # Set the sigfox socker
 s = socket.socket(socket.AF_SIGFOX, socket.SOCK_RAW)
@@ -41,8 +41,8 @@ fakeLat = 40.71427
 fakeLong = -74.00597
 
 # Fake Lat and Long to use indoors
-temp = 34
-hum = 26
+fakeTemp = 34
+fakeHum = 26
 
 # Array to collect two pitch and roll values to compare
 pitchValues = []
@@ -77,13 +77,49 @@ waitForGPS = True
 
 sleeptime = 0
 
+# Parameter Limits - for oil piantings
+# https://www.artworkarchive.com/blog/how-to-store-your-art-collection-like-an-expert
+tempHighest = 24
+tempLowest = 18
+humHighest = 50
+humLowest = 40
+
 # Print Sigfox Device ID
 print("Stork Code: ", binascii.hexlify(sigfox.id()))
 
 # ------------------ FUNCTIONS ------------------
 # Post all parameters to the Sigfox backend
-def postData(latitude, longitude):
+def postData(latitude, longitude, temp, hum):
     try:
+
+        # Mishandle event detected.
+        if (
+            hum >= humLowest
+            or hum <= humHighest
+            and temp >= tempLowest
+            and temp <= tempHighest
+            and mishandle
+        ):
+            statusCode = 3
+        # Temperature of the Stork at a dangerous level.
+        elif (
+            temp < tempLowest
+            or temp > tempHighest
+            and hum >= tempLowest
+            and hum <= tempHighest
+            and not mishandle
+        ):
+            statusCode = 4
+        # Humidity of the Stork at a dangerous level.
+        elif (
+            hum < humLowest
+            or hum > humHighest
+            and temp >= tempLowest
+            and temp <= tempHighest
+            and not mishandle
+        ):
+            statusCode = 5
+
         prg = "SENDING THE FOLLOWING DATA -> GPS: {} : {} - TEMP: {} HUM: {}".format(
             latitude, longitude, temp, hum
         )
@@ -100,7 +136,7 @@ def postData(latitude, longitude):
         print("DATA SENT!")
         pycom.rgbled(0x00FF00)  # green
     except Exception as e:
-        print("Failed to get Lat Long: " + e)
+        print("Failed to get send data to sigfox backend: " + e)
         pass
 
 
@@ -169,7 +205,7 @@ while True:
                 print("GPS Lock Acquired! - Sending Real GPS Data!")
                 if post:
                     print("Posting REAL data!")
-                    postData(lat, lng)
+                    postData(lat, lng, fakeTemp, fakeHum)
                 else:
                     print("postToSigfox set to False - not posting REAL data!")
                 fix = True
@@ -180,7 +216,7 @@ while True:
                 pycom.rgbled(0x7F0000)  # RED
                 if post:
                     print("Posting FAKE data!")
-                    postData(fakeLat, fakeLong)
+                    postData(fakeLat, fakeLong, fakeTemp, fakeHum)
                 else:
                     print("postToSigfox set to False - not posting FAKE data!")
                 fix = False
