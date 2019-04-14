@@ -1,21 +1,3 @@
-# pylint: disable=import-error, no-member
-
-# lat::float:32:little-endian lng::float:32:little-endian temp::uint:16:little-endian hum::uint:16:little-endian stat::char:1
-
-# {
-#   "snr" : "{snr}",
-#   "lat": "{lat}",
-#   "lng": "{lng}",
-#   "device" : "{device}",
-#   "avgSnr" : "{avgSnr}",
-#   "rssi" : "{rssi}",
-#   "location" : {"type" : "Point", "coordinates" : [{customData#lat}, {customData#lng}]},
-#   "temperature" : "{customData#temp}",
-#   "humidity" : "{customData#hum}",
-#   "status" : "{customData#stat}"
-# }
-
-
 # ------------------ Imports ------------------
 from network import Sigfox
 from pytrack import Pytrack
@@ -82,7 +64,7 @@ mishandle = False
 minInt = 0
 
 # Send every n mins - WARNING: Should be 10 minutes to meet the Sigfox sending limits
-sendCycle = 0
+sendCycle = 10
 
 # GPS Fix Status
 fix = False
@@ -91,9 +73,9 @@ fix = False
 post = True
 
 # Boolean to decide if we should wait for GPS (Testing)
-waitForGPS = False
+waitForGPS = True
 
-sleeptime = 100
+sleeptime = 0
 
 # Print Sigfox Device ID
 print("Stork Code: ", binascii.hexlify(sigfox.id()))
@@ -107,25 +89,39 @@ def postData(latitude, longitude):
         )
         print(prg)
         print("SENDING DATA")
-        pycom.rgbled(0x7F0000)
-
         longByteArray = bytearray(struct.pack("<f", float(latitude)))
         longByteArray.extend(bytearray(struct.pack("<f", float(longitude))))
         longByteArray.extend(bytearray(struct.pack("<B", temp)))
         longByteArray.extend(bytearray(struct.pack("<B", hum)))
         longByteArray.extend(bytearray(struct.pack("<B", statusCode)))
-
+        pycom.rgbled(0xFF00FF)  # GREEN
         s.send(longByteArray)
         # s.send(struct.pack("s", str(storkCode)) + "f", float(latitude)) + struct.pack("f", float(longitude) + struct.pack("c", char(statusCode)))
         print("DATA SENT!")
-        pycom.rgbled(0xB31DDC)  # green
+        pycom.rgbled(0x00FF00)  # green
     except Exception as e:
         print("Failed to get Lat Long: " + e)
         pass
 
 
+# WAIT FOR GPS BEFORE WE START
+print("Getting GPS Position...")
+coord = gps.coordinates()
+
+pycom.rgbled(0x7F0000)
+if waitForGPS and not fix:
+    while coord == (None, None):
+        print("Waiting for GPS...")
+        coord = gps.coordinates()
+        print(coord)
+
+
 # ------------------ MAIN LOOP ------------------
 while True:
+
+    lat, lng = coord
+    pycom.rgbled(0x7F7F00)  # YELLOW
+
     # Current time
     final_timer = time.time()
     # timeElapsed is the amount of seconds which have passed
@@ -167,23 +163,10 @@ while True:
                     mishandle
                 )
             )
-        # SEND CURRENT GPS, TEMP, HUMIDITY & STATUS
-        print("Getting GPS Position...")
-        coord = gps.coordinates()
-
-        if waitForGPS:
-            while coord == (None, None):
-                pycom.rgbled(0x7F0000)
-                print("Waiting for GPS...")
-                coord = gps.coordinates()
-                print(coord)
-
-        lat, lng = coord
 
         if not lat is None and not lng is None:  # Have a GPS fix
             if fix:
                 print("GPS Lock Acquired! - Sending Real GPS Data!")
-                pycom.rgbled(0x7F7F00)  # YELLOW
                 if post:
                     print("Posting REAL data!")
                     postData(lat, lng)
