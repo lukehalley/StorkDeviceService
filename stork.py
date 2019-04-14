@@ -77,6 +77,8 @@ waitForGPS = True
 
 sleeptime = 0
 
+sendfail = 0
+
 # Parameter Limits - for oil piantings
 # https://www.artworkarchive.com/blog/how-to-store-your-art-collection-like-an-expert
 tempHighest = 24
@@ -90,36 +92,209 @@ print("Stork Code: ", binascii.hexlify(sigfox.id()))
 # ------------------ FUNCTIONS ------------------
 # Post all parameters to the Sigfox backend
 def postData(latitude, longitude, temp, hum):
+
     try:
 
-        # Mishandle event detected.
+        # All Ok
         if (
-            hum >= humLowest
-            or hum <= humHighest
+            fix
+            and hum >= humLowest
+            and hum <= humHighest
+            and temp >= tempLowest
+            and temp <= tempHighest
+            and not mishandle
+            and sendfail < 3
+        ):
+            statusCode = 2
+        # Stork device location unknown.
+        elif (
+            not fix
+            and hum >= humLowest
+            and hum <= humHighest
+            and temp >= tempLowest
+            and temp <= tempHighest
+            and not mishandle
+            and sendfail < 3
+        ):
+            statusCode = 2
+        # Mishandle event detected.
+        elif (
+            fix
+            and hum >= humLowest
+            and hum <= humHighest
             and temp >= tempLowest
             and temp <= tempHighest
             and mishandle
+            and sendfail < 3
         ):
             statusCode = 3
         # Temperature of the Stork at a dangerous level.
         elif (
-            temp < tempLowest
+            fix
+            and temp < tempLowest
             or temp > tempHighest
             and hum >= tempLowest
             and hum <= tempHighest
             and not mishandle
+            and sendfail < 3
         ):
             statusCode = 4
         # Humidity of the Stork at a dangerous level.
         elif (
-            hum < humLowest
+            fix
+            and hum < humLowest
             or hum > humHighest
             and temp >= tempLowest
             and temp <= tempHighest
             and not mishandle
+            and sendfail < 3
         ):
             statusCode = 5
-
+        # Temperature AND Humidity of the Stork at a dangerous level.
+        elif (
+            fix
+            and hum < humLowest
+            or hum > humHighest
+            or temp < tempLowest
+            or temp > tempHighest
+            and not mishandle
+            and sendfail < 3
+        ):
+            statusCode = 6
+        # Stork device hasn't been seen in the last 30 minutes.
+        elif (
+            fix
+            and hum >= humLowest
+            and hum <= humHighest
+            and temp >= tempLowest
+            and temp <= tempHighest
+            and not mishandle
+            and sendfail >= 3
+        ):
+            statusCode = 7
+        # Stork device location unknown & no ping in last 30 minutes.
+        elif (
+            not fix
+            and hum >= humLowest
+            and hum <= humHighest
+            and temp >= tempLowest
+            and temp <= tempHighest
+            and not mishandle
+            and sendfail >= 3
+        ):
+            statusCode = 8
+        # Stork device location unknown & Humidity of the Stork at a dangerous level.
+        elif (
+            not fix
+            and hum < humLowest
+            or hum > humHighest
+            and temp >= tempLowest
+            and temp <= tempHighest
+            and not mishandle
+            and sendfail < 3
+        ):
+            statusCode = 9
+        # Stork device location unknown & Temperature of the Stork at a dangerous level.
+        elif (
+            not fix
+            and hum >= humLowest
+            and hum <= humHighest
+            and temp < tempLowest
+            or temp > tempHighest
+            and not mishandle
+            and sendfail < 3
+        ):
+            statusCode = 10
+        # Stork device location unknown & Temperature AND Humidity of the Stork at a dangerous level.
+        elif (
+            not fix
+            and hum < humLowest
+            or hum > humHighest
+            and temp < tempLowest
+            or temp > tempHighest
+            and not mishandle
+            and sendfail < 3
+        ):
+            statusCode = 11
+        # Stork device location unknown & Mishandle event detected.
+        elif (
+            not fix
+            and hum >= humLowest
+            and hum <= humHighest
+            and temp >= tempLowest
+            and temp <= tempHighest
+            and mishandle
+            and sendfail < 3
+        ):
+            statusCode = 12
+        # Stork device location unknown, Mishandle event detected & Stork device hasn't been seen in the last 30 minutes.
+        elif (
+            not fix
+            and hum >= humLowest
+            and hum <= humHighest
+            and temp >= tempLowest
+            and temp <= tempHighest
+            and mishandle
+            and sendfail >= 3
+        ):
+            statusCode = 13
+        # Stork device location unknown, Mishandle event detected & Humidity of the Stork at a dangerous level.
+        elif (
+            not fix
+            and hum < humLowest
+            or hum > humHighest
+            and temp >= tempLowest
+            and temp <= tempHighest
+            and mishandle
+            and sendfail >= 3
+        ):
+            statusCode = 14
+        # Stork device location unknown, Mishandle event detected & Temperature of the Stork at a dangerous level.
+        elif (
+            not fix
+            and hum >= humLowest
+            and hum <= humHighest
+            and temp < tempLowest
+            or temp > tempHighest
+            and mishandle
+            and sendfail >= 3
+        ):
+            statusCode = 15
+        # Stork device location unknown, Mishandle event detected & Humidity of the Stork at a dangerous level
+        # & Stork device hasn't been seen in the last 30 minutes.
+        elif (
+            not fix
+            and hum < humLowest
+            or hum > humHighest
+            and temp >= tempLowest
+            and temp <= tempHighest
+            and mishandle
+            and sendfail >= 3
+        ):
+            statusCode = 16
+        # Stork device location unknown, Mishandle event detected & Temperature of the Stork at a dangerous level
+        # & Stork device hasn't been seen in the last 30 minutes.
+        elif (
+            not fix
+            and hum >= humLowest
+            and hum <= humHighest
+            and temp < tempLowest
+            or temp > tempHighest
+            and mishandle
+            and sendfail >= 3
+        ):
+            statusCode = 17
+        # All parameters in a DANGER state.
+        elif (
+            not fix
+            and hum < humLowest
+            or hum > humHighest
+            and temp < tempLowest
+            or temp > tempHighest
+            and mishandle
+            and sendfail >= 3
+        ):
+            statusCode = 18
         prg = "SENDING THE FOLLOWING DATA -> GPS: {} : {} - TEMP: {} HUM: {}".format(
             latitude, longitude, temp, hum
         )
@@ -215,8 +390,13 @@ while True:
                 print("GPS signal lost or could not be locked!")
                 pycom.rgbled(0x7F0000)  # RED
                 if post:
-                    print("Posting FAKE data!")
-                    postData(fakeLat, fakeLong, fakeTemp, fakeHum)
+                    # If we don't have GPS for one 10 minute interval increment the send fail account
+                    # if it happens 3 times in a row it will be reported then reset it.
+                    sendfail += 1
+                    if sendfail = 3:
+                        sendfail = 0
+                    # print("Posting FAKE data!")
+                    # postData(fakeLat, fakeLong, fakeTemp, fakeHum)
                 else:
                     print("postToSigfox set to False - not posting FAKE data!")
                 fix = False
