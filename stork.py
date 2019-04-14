@@ -40,10 +40,6 @@ init_timer = time.time()
 fakeLat = 40.71427
 fakeLong = -74.00597
 
-# Fake Lat and Long to use indoors
-fakeTemp = 34
-fakeHum = 26
-
 # Array to collect two pitch and roll values to compare
 pitchValues = []
 rollValues = []
@@ -64,7 +60,7 @@ mishandle = False
 minInt = 0
 
 # Send every n mins - WARNING: Should be 10 minutes to meet the Sigfox sending limits
-sendCycle = 10
+sendCycle = 0
 
 # GPS Fix Status
 fix = False
@@ -73,11 +69,15 @@ fix = False
 post = True
 
 # Boolean to decide if we should wait for GPS (Testing)
-waitForGPS = True
+waitForGPS = False
 
 sleeptime = 0
 
 sendfail = 0
+
+# Fake Temp and Hum
+fakeTemp = 20
+fakeHum = 45
 
 # Parameter Limits - for oil piantings
 # https://www.artworkarchive.com/blog/how-to-store-your-art-collection-like-an-expert
@@ -295,6 +295,11 @@ def postData(latitude, longitude, temp, hum):
             and sendfail >= 3
         ):
             statusCode = 18
+
+        print("THE FOLLOWING STORK CODE HAS BEEN PICKED: {}".format(statusCode))
+
+        time.sleep(20)
+
         prg = "SENDING THE FOLLOWING DATA -> GPS: {} : {} - TEMP: {} HUM: {}".format(
             latitude, longitude, temp, hum
         )
@@ -393,10 +398,10 @@ while True:
                     # If we don't have GPS for one 10 minute interval increment the send fail account
                     # if it happens 3 times in a row it will be reported then reset it.
                     sendfail += 1
-                    if sendfail = 3:
+                    if sendfail == 3:
                         sendfail = 0
-                    # print("Posting FAKE data!")
-                    # postData(fakeLat, fakeLong, fakeTemp, fakeHum)
+                    print("Posting FAKE data!")
+                    postData(fakeLat, fakeLong, fakeTemp, fakeHum)
                 else:
                     print("postToSigfox set to False - not posting FAKE data!")
                 fix = False
