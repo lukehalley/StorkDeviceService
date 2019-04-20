@@ -62,7 +62,7 @@ mishandle = False
 minInt = 0
 
 # Send every n mins - WARNING: Should be 10 minutes to meet the Sigfox sending limits
-sendCycle = 0
+sendCycle = 10
 
 # GPS Fix Status
 fix = False
