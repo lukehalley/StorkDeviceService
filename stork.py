@@ -106,7 +106,7 @@ def postData(latitude, longitude, temp, hum):
             and not mishandle
             and sendfail < 3
         ):
-            statusCode = 2
+            statusCode = 1
         # Stork device location unknown.
         elif (
             not fix
@@ -296,6 +296,8 @@ def postData(latitude, longitude, temp, hum):
             and sendfail >= 3
         ):
             statusCode = 18
+        else:
+            statusCode = 0
 
         pycom.heartbeat(False)
         pycom.rgbled(0x00FFFF)
