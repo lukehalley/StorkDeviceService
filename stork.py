@@ -301,7 +301,7 @@ def postData(latitude, longitude, temp, hum):
         pycom.rgbled(0x00FFFF)
         time.sleep(5)
 
-        prg = "SENDING THE FOLLOWING DATA -> GPS: {} : {} - TEMP: {} HUM: {} STORK CODE: {}...".format(
+        prg = "SENDING THE FOLLOWING DATA -> GPS: {} : {} - TEMP: {} HUM: {} STORK CODE: {}".format(
             latitude, longitude, temp, hum, statusCode
         )
         print(prg)
@@ -413,7 +413,6 @@ while True:
                     print(coord)
             print("GPS position regained!")
             pycom.rgbled(0x00FFFF)
-            time.sleep(2)
             pycom.heartbeat(True)
             fix = True
         # Set the minute counter back to zero for the next "sendCycle" min cycle
@@ -435,12 +434,10 @@ while True:
             if difference > okLimit and difference < dangerLimit:
                 # Increment the count of the 002 mishandles detected
                 warnCount += 1
-                time.sleep(0.5)
             # Detect a 003 mishandle (mishandles of high severity)
             elif difference > warningLimit:
                 # Increment the count of the 002 mishandles detected
                 dangerCount += 1
-                time.sleep(0.5)
             else:
                 pass
         # Clear the pitch and roll values for the next two that will be read in
