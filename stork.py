@@ -60,7 +60,7 @@ mishandle = False
 minInt = 0
 
 # Send every n mins - WARNING: Should be 10 minutes to meet the Sigfox sending limits
-sendCycle = 0
+sendCycle = 1
 
 # GPS Fix Status
 fix = False
@@ -68,10 +68,10 @@ fix = False
 # Send to Sigfox - set to True in production
 post = True
 
-# Boolean to decide if we should wait for GPS (Testing)
-waitForGPS = False
+# Boolean to decide if we should wait for GPS (Testing) - set to True in production
+waitForGPS = True
 
-sleeptime = 0
+sleeptime = 10
 
 sendfail = 0
 
@@ -92,9 +92,7 @@ print("Stork Code: ", binascii.hexlify(sigfox.id()))
 # ------------------ FUNCTIONS ------------------
 # Post all parameters to the Sigfox backend
 def postData(latitude, longitude, temp, hum):
-
     try:
-
         # All Ok
         if (
             fix
@@ -296,47 +294,55 @@ def postData(latitude, longitude, temp, hum):
         ):
             statusCode = 18
 
-        print("THE FOLLOWING STORK CODE HAS BEEN PICKED: {}".format(statusCode))
+        pycom.heartbeat(False)
+        pycom.rgbled(0xFF00FF)
+        time.sleep(5)
 
-        time.sleep(20)
-
-        prg = "SENDING THE FOLLOWING DATA -> GPS: {} : {} - TEMP: {} HUM: {}".format(
-            latitude, longitude, temp, hum
+        prg = "SENDING THE FOLLOWING DATA -> GPS: {} : {} - TEMP: {} HUM: {} STORK CODE: {}...".format(
+            latitude, longitude, temp, hum, statusCode
         )
         print(prg)
-        print("SENDING DATA")
         longByteArray = bytearray(struct.pack("<f", float(latitude)))
         longByteArray.extend(bytearray(struct.pack("<f", float(longitude))))
         longByteArray.extend(bytearray(struct.pack("<B", temp)))
         longByteArray.extend(bytearray(struct.pack("<B", hum)))
         longByteArray.extend(bytearray(struct.pack("<B", statusCode)))
-        pycom.rgbled(0xFF00FF)  # GREEN
         s.send(longByteArray)
-        # s.send(struct.pack("s", str(storkCode)) + "f", float(latitude)) + struct.pack("f", float(longitude) + struct.pack("c", char(statusCode)))
         print("DATA SENT!")
-        pycom.rgbled(0x00FF00)  # green
-    except Exception as e:
-        print("Failed to get send data to sigfox backend: " + e)
+        pycom.rgbled(0x00FF00)
+        print("Reentering Main Loop")
+        time.sleep(10)
+        pycom.heartbeat(True)
+    except Exception as error:
+        err = "ERROR: There was a problem posting data: {}".format(error)
+        print(err)
         pass
 
 
 # WAIT FOR GPS BEFORE WE START
-print("Getting GPS Position...")
 coord = gps.coordinates()
 
-pycom.rgbled(0x7F0000)
+pycom.heartbeat(False)
+pycom.rgbled(0xFF7000)
+time.sleep(2)
 if waitForGPS and not fix:
     while coord == (None, None):
         print("Waiting for GPS...")
         coord = gps.coordinates()
         print(coord)
+print("GPS Position Locked!")
+pycom.rgbled(0x00FF00)
 
+time.sleep(10)
+
+print("")
+print("Starting Main Loop:")
+
+pycom.heartbeat(True)
 
 # ------------------ MAIN LOOP ------------------
 while True:
-
     lat, lng = coord
-    pycom.rgbled(0x7F7F00)  # YELLOW
 
     # Current time
     final_timer = time.time()
@@ -381,34 +387,32 @@ while True:
             )
 
         if not lat is None and not lng is None:  # Have a GPS fix
-            if fix:
-                print("GPS Lock Acquired! - Sending Real GPS Data!")
-                if post:
-                    print("Posting REAL data!")
-                    postData(lat, lng, fakeTemp, fakeHum)
-                else:
-                    print("postToSigfox set to False - not posting REAL data!")
-                fix = True
-            print("{} {}".format(lat, lng))
+            print("GPS Lock Acquired! - Sending Real GPS Data!")
+            if post:
+                print("Posting REAL data!")
+                postData(lat, lng, fakeTemp, fakeHum)
+            else:
+                print("postToSigfox set to False - not posting REAL data!")
         else:  # No GPS fix
-            if not fix:
-                print("GPS signal lost or could not be locked!")
-                pycom.rgbled(0x7F0000)  # RED
-                if post:
-                    # If we don't have GPS for one 10 minute interval increment the send fail account
-                    # if it happens 3 times in a row it will be reported then reset it.
-                    sendfail += 1
-                    if sendfail == 3:
-                        sendfail = 0
-                    print("Posting FAKE data!")
-                    postData(fakeLat, fakeLong, fakeTemp, fakeHum)
-                else:
-                    print("postToSigfox set to False - not posting FAKE data!")
-                fix = False
+            print("GPS signal lost or could not be locked!")
+            pycom.heartbeat(False)
+            # Set LED to RED
+            pycom.rgbled(0x7F0000)
+            time.sleep(10)
+            pycom.heartbeat(True)
+            if post:
+                # If we don't have GPS for one 10 minute interval increment the send fail account
+                # if it happens 3 times in a row it will be reported then reset it.
+                sendfail += 1
+                if sendfail == 3:
+                    sendfail = 0
+                print("Posting FAKE data!")
+                postData(fakeLat, fakeLong, fakeTemp, fakeHum)
+            else:
+                print("postToSigfox set to False - not posting FAKE data!")
+            fix = False
         # Set the minute counter back to zero for the next "sendCycle" min cycle
         minInt = 0
-        print("CYCLE DONE!!!!!! SLEEPING FOR N SECS!")
-        time.sleep(sleeptime)
     # If the cycle is still active keep reading values
     else:
         # Get two pitch values and two roll values
@@ -422,17 +426,14 @@ while True:
             difference = abs(pitchValues[1] - pitchValues[0]) + abs(
                 rollValues[1] - rollValues[0]
             )
-            print("Difference: {}".format(difference))
             # Detect a 002 mishandle (mishandles of medium severity)
             if difference > okLimit and difference < dangerLimit:
-                print("Mishandle Warning: 002")
                 # Increment the count of the 002 mishandles detected
                 warnCount += 1
                 time.sleep(0.5)
             # Detect a 003 mishandle (mishandles of high severity)
             elif difference > warningLimit:
                 # Increment the count of the 002 mishandles detected
-                print("Mishandle Danger: 003")
                 dangerCount += 1
                 time.sleep(0.5)
             else:
