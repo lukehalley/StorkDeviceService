@@ -8,8 +8,10 @@ import socket
 import binascii
 import time
 import pycom
+import machine
 import struct
 import gc
+from os import urandom as _urandom
 from machine import SD
 
 # ------------------ DEVICE SETUP ------------------
@@ -295,7 +297,7 @@ def postData(latitude, longitude, temp, hum):
             statusCode = 18
 
         pycom.heartbeat(False)
-        pycom.rgbled(0xFF00FF)
+        pycom.rgbled(0x00FFFF)
         time.sleep(5)
 
         prg = "SENDING THE FOLLOWING DATA -> GPS: {} : {} - TEMP: {} HUM: {} STORK CODE: {}...".format(
@@ -310,9 +312,10 @@ def postData(latitude, longitude, temp, hum):
         s.send(longByteArray)
         print("DATA SENT!")
         pycom.rgbled(0x00FF00)
-        print("Reentering Main Loop")
         time.sleep(10)
         pycom.heartbeat(True)
+        print("Re-Entering Main Loop...")
+        print("")
     except Exception as error:
         err = "ERROR: There was a problem posting data: {}".format(error)
         print(err)
@@ -325,12 +328,12 @@ coord = gps.coordinates()
 pycom.heartbeat(False)
 pycom.rgbled(0xFF7000)
 time.sleep(2)
+print("Locking To GPS...")
 if waitForGPS and not fix:
     while coord == (None, None):
-        print("Waiting for GPS...")
         coord = gps.coordinates()
-        print(coord)
 print("GPS Position Locked!")
+fix = True
 pycom.rgbled(0x00FF00)
 
 time.sleep(10)
@@ -361,7 +364,7 @@ while True:
                 warnCount, dangerCount
             )
         )
-        # time.sleep(10)
+        print("")
     # If "sendCycle" (sendCycle is set to 10 mins normally as Sigfox allows a message to be sent every 10 minutes) mins has passed
     elif minInt >= sendCycle:
         print("{} Minutes Has Passed!".format(minInt))
@@ -370,6 +373,7 @@ while True:
                 warnCount, dangerCount
             )
         )
+        print("")
         # If one or more dangerous mishandle has been detected or more than 5 warning (mishandles of medium severity) mishandles
         if (dangerCount > 0) or (warnCount >= 5):
             # Set that there was a mishandle
@@ -389,28 +393,28 @@ while True:
         if not lat is None and not lng is None:  # Have a GPS fix
             print("GPS Lock Acquired! - Sending Real GPS Data!")
             if post:
+                pycom.heartbeat(False)
                 print("Posting REAL data!")
-                postData(lat, lng, fakeTemp, fakeHum)
+                temp = int(str(machine.rng())[:2])
+                hum = int(str(machine.rng())[:2])
+                postData(lat, lng, temp, hum)
             else:
                 print("postToSigfox set to False - not posting REAL data!")
         else:  # No GPS fix
-            print("GPS signal lost or could not be locked!")
+            print("GPS signal lost or could not be locked - Re-locking GPS signal!")
             pycom.heartbeat(False)
             # Set LED to RED
             pycom.rgbled(0x7F0000)
-            time.sleep(10)
+            if waitForGPS and not fix:
+                while coord == (None, None):
+                    print("Waiting for GPS...")
+                    coord = gps.coordinates()
+                    print(coord)
+            print("GPS position regained!")
+            pycom.rgbled(0x00FFFF)
+            time.sleep(2)
             pycom.heartbeat(True)
-            if post:
-                # If we don't have GPS for one 10 minute interval increment the send fail account
-                # if it happens 3 times in a row it will be reported then reset it.
-                sendfail += 1
-                if sendfail == 3:
-                    sendfail = 0
-                print("Posting FAKE data!")
-                postData(fakeLat, fakeLong, fakeTemp, fakeHum)
-            else:
-                print("postToSigfox set to False - not posting FAKE data!")
-            fix = False
+            fix = True
         # Set the minute counter back to zero for the next "sendCycle" min cycle
         minInt = 0
     # If the cycle is still active keep reading values
