@@ -8,8 +8,10 @@ import socket
 import binascii
 import time
 import pycom
+import machine
 import struct
 import gc
+from os import urandom as _urandom
 from machine import SD
 
 # ------------------ DEVICE SETUP ------------------
@@ -23,7 +25,7 @@ gps = L76GNSS(py, timeout=60)
 acc = LIS2HH12()
 
 # Set the status code to be all ok to start off.
-statusCode = 15
+statusCode = 0
 
 # Set the sigfox socker
 s = socket.socket(socket.AF_SIGFOX, socket.SOCK_RAW)
@@ -39,10 +41,6 @@ init_timer = time.time()
 # Fake Lat and Long to use indoors
 fakeLat = 40.71427
 fakeLong = -74.00597
-
-# Fake Lat and Long to use indoors
-temp = 34
-hum = 26
 
 # Array to collect two pitch and roll values to compare
 pitchValues = []
@@ -64,7 +62,7 @@ mishandle = False
 minInt = 0
 
 # Send every n mins - WARNING: Should be 10 minutes to meet the Sigfox sending limits
-sendCycle = 10
+sendCycle = 0
 
 # GPS Fix Status
 fix = False
@@ -72,55 +70,285 @@ fix = False
 # Send to Sigfox - set to True in production
 post = True
 
-# Boolean to decide if we should wait for GPS (Testing)
+# Boolean to decide if we should wait for GPS (Testing) - set to True in production
 waitForGPS = True
 
-sleeptime = 0
+sleeptime = 10
+
+sendfail = 0
+
+# Fake Temp and Hum
+fakeTemp = 20
+fakeHum = 45
+
+# Parameter Limits - for oil piantings
+# https://www.artworkarchive.com/blog/how-to-store-your-art-collection-like-an-expert
+tempHighest = 24
+tempLowest = 18
+humHighest = 50
+humLowest = 40
 
 # Print Sigfox Device ID
-print("Stork Code: ", binascii.hexlify(sigfox.id()))
+STR_CODE = str(binascii.hexlify(sigfox.id())).replace("'", "")[-6:].upper()
+print("Stork Code:", STR_CODE)
 
 # ------------------ FUNCTIONS ------------------
 # Post all parameters to the Sigfox backend
-def postData(latitude, longitude):
+def postData(latitude, longitude, temp, hum):
     try:
-        prg = "SENDING THE FOLLOWING DATA -> GPS: {} : {} - TEMP: {} HUM: {}".format(
-            latitude, longitude, temp, hum
+        # All Ok
+        if (
+            fix
+            and hum >= humLowest
+            and hum <= humHighest
+            and temp >= tempLowest
+            and temp <= tempHighest
+            and not mishandle
+            and sendfail < 3
+        ):
+            statusCode = 1
+        # Stork device location unknown.
+        elif (
+            not fix
+            and hum >= humLowest
+            and hum <= humHighest
+            and temp >= tempLowest
+            and temp <= tempHighest
+            and not mishandle
+            and sendfail < 3
+        ):
+            statusCode = 2
+        # Mishandle event detected.
+        elif (
+            fix
+            and hum >= humLowest
+            and hum <= humHighest
+            and temp >= tempLowest
+            and temp <= tempHighest
+            and mishandle
+            and sendfail < 3
+        ):
+            statusCode = 3
+        # Temperature of the Stork at a dangerous level.
+        elif (
+            fix
+            and temp < tempLowest
+            or temp > tempHighest
+            and hum >= tempLowest
+            and hum <= tempHighest
+            and not mishandle
+            and sendfail < 3
+        ):
+            statusCode = 4
+        # Humidity of the Stork at a dangerous level.
+        elif (
+            fix
+            and hum < humLowest
+            or hum > humHighest
+            and temp >= tempLowest
+            and temp <= tempHighest
+            and not mishandle
+            and sendfail < 3
+        ):
+            statusCode = 5
+        # Temperature AND Humidity of the Stork at a dangerous level.
+        elif (
+            fix
+            and hum < humLowest
+            or hum > humHighest
+            or temp < tempLowest
+            or temp > tempHighest
+            and not mishandle
+            and sendfail < 3
+        ):
+            statusCode = 6
+        # Stork device hasn't been seen in the last 30 minutes.
+        elif (
+            fix
+            and hum >= humLowest
+            and hum <= humHighest
+            and temp >= tempLowest
+            and temp <= tempHighest
+            and not mishandle
+            and sendfail >= 3
+        ):
+            statusCode = 7
+        # Stork device location unknown & no ping in last 30 minutes.
+        elif (
+            not fix
+            and hum >= humLowest
+            and hum <= humHighest
+            and temp >= tempLowest
+            and temp <= tempHighest
+            and not mishandle
+            and sendfail >= 3
+        ):
+            statusCode = 8
+        # Stork device location unknown & Humidity of the Stork at a dangerous level.
+        elif (
+            not fix
+            and hum < humLowest
+            or hum > humHighest
+            and temp >= tempLowest
+            and temp <= tempHighest
+            and not mishandle
+            and sendfail < 3
+        ):
+            statusCode = 9
+        # Stork device location unknown & Temperature of the Stork at a dangerous level.
+        elif (
+            not fix
+            and hum >= humLowest
+            and hum <= humHighest
+            and temp < tempLowest
+            or temp > tempHighest
+            and not mishandle
+            and sendfail < 3
+        ):
+            statusCode = 10
+        # Stork device location unknown & Temperature AND Humidity of the Stork at a dangerous level.
+        elif (
+            not fix
+            and hum < humLowest
+            or hum > humHighest
+            and temp < tempLowest
+            or temp > tempHighest
+            and not mishandle
+            and sendfail < 3
+        ):
+            statusCode = 11
+        # Stork device location unknown & Mishandle event detected.
+        elif (
+            not fix
+            and hum >= humLowest
+            and hum <= humHighest
+            and temp >= tempLowest
+            and temp <= tempHighest
+            and mishandle
+            and sendfail < 3
+        ):
+            statusCode = 12
+        # Stork device location unknown, Mishandle event detected & Stork device hasn't been seen in the last 30 minutes.
+        elif (
+            not fix
+            and hum >= humLowest
+            and hum <= humHighest
+            and temp >= tempLowest
+            and temp <= tempHighest
+            and mishandle
+            and sendfail >= 3
+        ):
+            statusCode = 13
+        # Stork device location unknown, Mishandle event detected & Humidity of the Stork at a dangerous level.
+        elif (
+            not fix
+            and hum < humLowest
+            or hum > humHighest
+            and temp >= tempLowest
+            and temp <= tempHighest
+            and mishandle
+            and sendfail >= 3
+        ):
+            statusCode = 14
+        # Stork device location unknown, Mishandle event detected & Temperature of the Stork at a dangerous level.
+        elif (
+            not fix
+            and hum >= humLowest
+            and hum <= humHighest
+            and temp < tempLowest
+            or temp > tempHighest
+            and mishandle
+            and sendfail >= 3
+        ):
+            statusCode = 15
+        # Stork device location unknown, Mishandle event detected & Humidity of the Stork at a dangerous level
+        # & Stork device hasn't been seen in the last 30 minutes.
+        elif (
+            not fix
+            and hum < humLowest
+            or hum > humHighest
+            and temp >= tempLowest
+            and temp <= tempHighest
+            and mishandle
+            and sendfail >= 3
+        ):
+            statusCode = 16
+        # Stork device location unknown, Mishandle event detected & Temperature of the Stork at a dangerous level
+        # & Stork device hasn't been seen in the last 30 minutes.
+        elif (
+            not fix
+            and hum >= humLowest
+            and hum <= humHighest
+            and temp < tempLowest
+            or temp > tempHighest
+            and mishandle
+            and sendfail >= 3
+        ):
+            statusCode = 17
+        # All parameters in a DANGER state.
+        elif (
+            not fix
+            and hum < humLowest
+            or hum > humHighest
+            and temp < tempLowest
+            or temp > tempHighest
+            and mishandle
+            and sendfail >= 3
+        ):
+            statusCode = 18
+        else:
+            statusCode = 0
+
+        pycom.heartbeat(False)
+        pycom.rgbled(0x00FFFF)
+        time.sleep(5)
+
+        prg = "SENDING THE FOLLOWING DATA -> GPS: {} : {} - TEMP: {} HUM: {} STORK CODE: {}".format(
+            latitude, longitude, temp, hum, statusCode
         )
         print(prg)
-        print("SENDING DATA")
         longByteArray = bytearray(struct.pack("<f", float(latitude)))
         longByteArray.extend(bytearray(struct.pack("<f", float(longitude))))
         longByteArray.extend(bytearray(struct.pack("<B", temp)))
         longByteArray.extend(bytearray(struct.pack("<B", hum)))
         longByteArray.extend(bytearray(struct.pack("<B", statusCode)))
-        pycom.rgbled(0xFF00FF)  # GREEN
         s.send(longByteArray)
-        # s.send(struct.pack("s", str(storkCode)) + "f", float(latitude)) + struct.pack("f", float(longitude) + struct.pack("c", char(statusCode)))
         print("DATA SENT!")
-        pycom.rgbled(0x00FF00)  # green
-    except Exception as e:
-        print("Failed to get Lat Long: " + e)
+        pycom.rgbled(0x00FF00)
+        time.sleep(10)
+        pycom.heartbeat(True)
+        print("Re-Entering Main Loop...")
+        print("")
+    except Exception as error:
+        err = "ERROR: There was a problem posting data: {}".format(error)
+        print(err)
         pass
 
 
 # WAIT FOR GPS BEFORE WE START
-print("Getting GPS Position...")
 coord = gps.coordinates()
 
-pycom.rgbled(0x7F0000)
+pycom.heartbeat(False)
+pycom.rgbled(0xFF7000)
+time.sleep(2)
+print("Locking To GPS...")
 if waitForGPS and not fix:
     while coord == (None, None):
-        print("Waiting for GPS...")
         coord = gps.coordinates()
-        print(coord)
+print("GPS Position Locked!")
+fix = True
+pycom.rgbled(0x00FF00)
 
+time.sleep(10)
+
+print("")
+print("Starting Main Loop:")
+
+pycom.heartbeat(True)
 
 # ------------------ MAIN LOOP ------------------
 while True:
-
     lat, lng = coord
-    pycom.rgbled(0x7F7F00)  # YELLOW
 
     # Current time
     final_timer = time.time()
@@ -139,7 +367,7 @@ while True:
                 warnCount, dangerCount
             )
         )
-        # time.sleep(10)
+        print("")
     # If "sendCycle" (sendCycle is set to 10 mins normally as Sigfox allows a message to be sent every 10 minutes) mins has passed
     elif minInt >= sendCycle:
         print("{} Minutes Has Passed!".format(minInt))
@@ -148,6 +376,7 @@ while True:
                 warnCount, dangerCount
             )
         )
+        print("")
         # If one or more dangerous mishandle has been detected or more than 5 warning (mishandles of medium severity) mishandles
         if (dangerCount > 0) or (warnCount >= 5):
             # Set that there was a mishandle
@@ -165,29 +394,31 @@ while True:
             )
 
         if not lat is None and not lng is None:  # Have a GPS fix
-            if fix:
-                print("GPS Lock Acquired! - Sending Real GPS Data!")
-                if post:
-                    print("Posting REAL data!")
-                    postData(lat, lng)
-                else:
-                    print("postToSigfox set to False - not posting REAL data!")
-                fix = True
-            print("{} {}".format(lat, lng))
+            print("GPS Lock Acquired! - Sending Real GPS Data!")
+            if post:
+                pycom.heartbeat(False)
+                print("Posting REAL data!")
+                temp = int(str(machine.rng())[:2])
+                hum = int(str(machine.rng())[:2])
+                postData(lat, lng, temp, hum)
+            else:
+                print("postToSigfox set to False - not posting REAL data!")
         else:  # No GPS fix
-            if not fix:
-                print("GPS signal lost or could not be locked!")
-                pycom.rgbled(0x7F0000)  # RED
-                if post:
-                    print("Posting FAKE data!")
-                    postData(fakeLat, fakeLong)
-                else:
-                    print("postToSigfox set to False - not posting FAKE data!")
-                fix = False
+            print("GPS signal lost or could not be locked - Re-locking GPS signal!")
+            pycom.heartbeat(False)
+            # Set LED to RED
+            pycom.rgbled(0x7F0000)
+            if waitForGPS and not fix:
+                while coord == (None, None):
+                    print("Waiting for GPS...")
+                    coord = gps.coordinates()
+                    print(coord)
+            print("GPS position regained!")
+            pycom.rgbled(0x00FFFF)
+            pycom.heartbeat(True)
+            fix = True
         # Set the minute counter back to zero for the next "sendCycle" min cycle
         minInt = 0
-        print("CYCLE DONE!!!!!! SLEEPING FOR N SECS!")
-        time.sleep(sleeptime)
     # If the cycle is still active keep reading values
     else:
         # Get two pitch values and two roll values
@@ -201,19 +432,14 @@ while True:
             difference = abs(pitchValues[1] - pitchValues[0]) + abs(
                 rollValues[1] - rollValues[0]
             )
-            print("Difference: {}".format(difference))
             # Detect a 002 mishandle (mishandles of medium severity)
             if difference > okLimit and difference < dangerLimit:
-                print("Mishandle Warning: 002")
                 # Increment the count of the 002 mishandles detected
                 warnCount += 1
-                time.sleep(0.5)
             # Detect a 003 mishandle (mishandles of high severity)
             elif difference > warningLimit:
                 # Increment the count of the 002 mishandles detected
-                print("Mishandle Danger: 003")
                 dangerCount += 1
-                time.sleep(0.5)
             else:
                 pass
         # Clear the pitch and roll values for the next two that will be read in
