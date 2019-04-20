@@ -62,7 +62,7 @@ mishandle = False
 minInt = 0
 
 # Send every n mins - WARNING: Should be 10 minutes to meet the Sigfox sending limits
-sendCycle = 1
+sendCycle = 10
 
 # GPS Fix Status
 fix = False
@@ -89,7 +89,8 @@ humHighest = 50
 humLowest = 40
 
 # Print Sigfox Device ID
-print("Stork Code: ", binascii.hexlify(sigfox.id()))
+STR_CODE = str(binascii.hexlify(sigfox.id())).replace("'", "")[-6:].upper()
+print("Stork Code:", STR_CODE)
 
 # ------------------ FUNCTIONS ------------------
 # Post all parameters to the Sigfox backend
