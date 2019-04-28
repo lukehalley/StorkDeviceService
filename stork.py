@@ -12,7 +12,6 @@ import machine
 import struct
 import gc
 from os import urandom as _urandom
-from machine import SD
 
 # ------------------ DEVICE SETUP ------------------
 # Create instance of the Pytrack to access its functions
@@ -348,6 +347,7 @@ pycom.heartbeat(True)
 
 # ------------------ MAIN LOOP ------------------
 while True:
+    coord = gps.coordinates()
     lat, lng = coord
 
     # Current time
